@@ -28,6 +28,7 @@ struct HomeView: View {
     @State private var showDeleteError = false
     @State private var showBulkDeleteConfirm = false
     @State private var showCopiedToast = false
+    @State private var hasScrolled = false
 
     private var filteredItems: [ClipboardItem] {
         var result = items
@@ -58,6 +59,18 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                if !hasScrolled {
+                    HStack {
+                        Text("Clippd")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 filterBar
                     .padding(.horizontal)
                     .padding(.vertical, 8)
@@ -74,57 +87,83 @@ struct HomeView: View {
                     }
                     List {
                         ForEach(filteredItems) { item in
-                            if isSelectMode {
-                                Button {
-                                    toggleSelection(item)
-                                } label: {
-                                    HStack(spacing: 12) {
-                                        Image(systemName: selectedItemIDs.contains(item.id) ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(selectedItemIDs.contains(item.id) ? Color.accentColor : .secondary)
-                                            .font(.title3)
+                            Group {
+                                if isSelectMode {
+                                    Button {
+                                        toggleSelection(item)
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: selectedItemIDs.contains(item.id) ? "checkmark.circle.fill" : "circle")
+                                                .foregroundStyle(selectedItemIDs.contains(item.id) ? Color.accentColor : .secondary)
+                                                .font(.title3)
+                                            ClipboardItemRow(item: item)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                } else if item.isPending {
+                                    Button {
+                                        saveItem(item)
+                                    } label: {
                                         ClipboardItemRow(item: item)
                                     }
-                                }
-                                .buttonStyle(.plain)
-                            } else if item.isPending {
-                                Button {
-                                    saveItem(item)
-                                } label: {
-                                    ClipboardItemRow(item: item)
-                                }
-                                .buttonStyle(.plain)
-                                .swipeActions(edge: .trailing) {
-                                    Button(role: .destructive) {
-                                        deleteItem(item)
+                                    .buttonStyle(.plain)
+                                    .swipeActions(edge: .trailing) {
+                                        Button(role: .destructive) {
+                                            deleteItem(item)
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                                } else {
+                                    Button {
+                                        copyToClipboard(item)
                                     } label: {
-                                        Label("Delete", systemImage: "trash")
+                                        ClipboardItemRow(item: item)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .swipeActions(edge: .trailing) {
+                                        Button(role: .destructive) {
+                                            deleteItem(item)
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
                                     }
                                 }
-                            } else {
-                                Button {
-                                    copyToClipboard(item)
-                                } label: {
-                                    ClipboardItemRow(item: item)
-                                }
-                                .buttonStyle(.plain)
-                                .swipeActions(edge: .trailing) {
-                                    Button(role: .destructive) {
-                                        deleteItem(item)
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
+                            }
+                            .background {
+                                if item.id == filteredItems.first?.id {
+                                    scrollTracker
                                 }
                             }
                         }
                     }
                     .listStyle(.plain)
+                    .coordinateSpace(name: "scroll")
+                    .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+                        if value < -20 && !hasScrolled {
+                            withAnimation(.snappy(duration: 0.3)) {
+                                hasScrolled = true
+                            }
+                        } else if value > -5 && hasScrolled {
+                            withAnimation(.snappy(duration: 0.3)) {
+                                hasScrolled = false
+                            }
+                        }
+                    }
+                    .onChange(of: filteredItems.isEmpty) { _, isEmpty in
+                        if isEmpty && hasScrolled {
+                            withAnimation(.snappy(duration: 0.3)) {
+                                hasScrolled = false
+                            }
+                        }
+                    }
 
                     if isSelectMode {
                         bulkDeleteBar
                     }
                 }
             }
-            .navigationTitle("Clippd")
+            .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Search clips")
             .onAppear {
                 ClipboardReader.readAndInsertPending(context: modelContext)
@@ -132,14 +171,18 @@ struct HomeView: View {
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     ClipboardReader.readAndInsertPending(context: modelContext)
+                    enforceHistoryLimit()
                 }
             }
             .overlay(alignment: .bottom) {
-                if showCopiedToast {
-                    ToastView(message: "Copied!")
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .padding(.bottom, 32)
+                Group {
+                    if showCopiedToast {
+                        ToastView(message: "Copied!")
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .padding(.bottom, 32)
+                    }
                 }
+                .animation(.easeInOut(duration: 0.3), value: showCopiedToast)
             }
             .alert("Could not save item. Try freeing up some space.", isPresented: $showSaveError) {
                 Button("OK", role: .cancel) {}
@@ -163,6 +206,7 @@ struct HomeView: View {
                     } label: {
                         Image(systemName: "gearshape")
                     }
+                    .disabled(isSelectMode)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(isSelectMode ? "Done" : "Select") {
@@ -337,6 +381,20 @@ struct HomeView: View {
 
     private var searchEmptyState: some View {
         ContentUnavailableView.search(text: searchText)
+    }
+
+    private var scrollTracker: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .preference(key: ScrollOffsetPreferenceKey.self, value: proxy.frame(in: .named("scroll")).minY)
+        }
+    }
+}
+
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value += nextValue()
     }
 }
 

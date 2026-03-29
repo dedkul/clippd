@@ -1,4 +1,5 @@
 import SwiftUI
+internal import Combine
 
 struct ClipboardItemRow: View {
     let item: ClipboardItem
@@ -23,7 +24,7 @@ struct ClipboardItemRow: View {
                 contentPreview
                     .lineLimit(2)
 
-                Text(item.dateSaved, style: .relative)
+                RelativeTimeView(date: item.dateSaved)
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -47,8 +48,8 @@ struct ClipboardItemRow: View {
         .padding(.vertical, 4)
         .listRowBackground(
             item.isPending
-                ? Color.accentColor.opacity(0.08)
-                : Color(.systemBackground)
+                ? Color.accentColor.opacity(0.12)
+                : nil
         )
     }
 
@@ -90,6 +91,42 @@ struct ClipboardItemRow: View {
                     .font(.subheadline)
                     .foregroundStyle(Color.accentColor)
             }
+        }
+    }
+}
+
+struct RelativeTimeView: View {
+    let date: Date
+    @State private var timeString: String = ""
+    
+    // Timer that fires every 60 seconds
+    let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+    
+    var body: some View {
+        Text(timeString)
+            .onAppear { updateTimeString() }
+            .onReceive(timer) { _ in updateTimeString() }
+    }
+    
+    private func updateTimeString() {
+        let now = Date()
+        let diff = now.timeIntervalSince(date)
+        
+        if diff < 60 {
+            timeString = "Just now"
+        } else if diff < 3600 {
+            let minutes = Int(diff / 60)
+            timeString = "\(minutes) minute\(minutes == 1 ? "" : "s") ago"
+        } else if diff < 86400 {
+            let hours = Int(diff / 3600)
+            timeString = "\(hours) hour\(hours == 1 ? "" : "s") ago"
+        } else if diff < 604800 {
+            let days = Int(diff / 86400)
+            timeString = "\(days) day\(days == 1 ? "" : "s") ago"
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMM d"
+            timeString = formatter.string(from: date)
         }
     }
 }

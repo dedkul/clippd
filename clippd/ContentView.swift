@@ -13,11 +13,16 @@ struct ContentView: View {
     private var hasSeenOnboarding = AppSettings.Defaults.hasSeenOnboarding
 
     var body: some View {
-        if hasSeenOnboarding {
-            HomeView()
-        } else {
-            OnboardingView()
+        Group {
+            if hasSeenOnboarding {
+                HomeView()
+                    .transition(.opacity)
+            } else {
+                OnboardingView()
+                    .transition(.opacity)
+            }
         }
+        .animation(.easeInOut(duration: 0.4), value: hasSeenOnboarding)
     }
 }
 

@@ -10,6 +10,8 @@ struct SettingsView: View {
     @AppStorage(AppSettings.Keys.linkPreviewsEnabled, store: AppSettings.store)
     private var linkPreviewsEnabled = AppSettings.Defaults.linkPreviewsEnabled
 
+    @Query(sort: \ClipboardItem.dateSaved, order: .reverse) private var items: [ClipboardItem]
+
     @State private var showClearConfirm = false
     @State private var storageUsed: String = "Calculating…"
 
@@ -73,8 +75,21 @@ struct SettingsView: View {
     private var historyLimitBinding: Binding<Double> {
         Binding(
             get: { Double(historyLimit) },
-            set: { historyLimit = Int($0) }
+            set: { newValue in
+                historyLimit = Int(newValue)
+                enforceHistoryLimit()
+            }
         )
+    }
+
+    private func enforceHistoryLimit() {
+        let saved = items.filter { !$0.isPending }
+        guard saved.count > historyLimit else { return }
+        for item in saved.suffix(saved.count - historyLimit) {
+            modelContext.delete(item)
+        }
+        try? modelContext.save()
+        calculateStorage()
     }
 
     private func clearAllData() {
