@@ -1,44 +1,28 @@
 import UIKit
-import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 
 @objc(ShareViewController)
 class ShareViewController: UIViewController {
-    private var modelContainer: ModelContainer?
 
     override func viewDidLoad() {
         super.viewDidLoad()
-
-        let schema = Schema([ClipboardItem.self])
-        let groupURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.ashish.clippd"
-        )!
-        let storeURL = groupURL.appendingPathComponent("clippd.store")
-        let config = ModelConfiguration("Clippd", url: storeURL)
-        modelContainer = try? ModelContainer(for: schema, configurations: [config])
-
-        let shareView = ShareView(
-            onSave: { [weak self] in self?.saveSharedItem() },
-            onCancel: { [weak self] in self?.cancel() }
-        )
-        let hostingController = UIHostingController(rootView: shareView)
-        addChild(hostingController)
-        view.addSubview(hostingController.view)
-        hostingController.view.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            hostingController.view.topAnchor.constraint(equalTo: view.topAnchor),
-            hostingController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            hostingController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            hostingController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-        ])
-        hostingController.didMove(toParent: self)
+        view.backgroundColor = .clear
+        saveAndDismiss()
     }
 
-    private func saveSharedItem() {
-        guard let extensionItems = extensionContext?.inputItems as? [NSExtensionItem],
-              let container = modelContainer else {
-            showError()
+    private func saveAndDismiss() {
+        guard let extensionItems = extensionContext?.inputItems as? [NSExtensionItem] else {
+            dismiss()
+            return
+        }
+
+        let containerURL = FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: "group.com.ashish.clippd")!
+            .appending(path: "clippd.store")
+        let config = ModelConfiguration(url: containerURL)
+        guard let container = try? ModelContainer(for: ClipboardItem.self, configurations: config) else {
+            dismiss()
             return
         }
 
@@ -51,39 +35,40 @@ class ShareViewController: UIViewController {
                 guard let attachments = extensionItem.attachments else { continue }
 
                 for provider in attachments {
-                    if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
-                        if let url = try? await provider.loadItem(forTypeIdentifier: UTType.url.identifier) as? URL {
-                            let item = ClipboardItem(type: .link, urlString: url.absoluteString)
-                            context.insert(item)
-                            saved = true
-                        }
-                    } else if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
-                        if let data = try? await loadImageData(from: provider) {
-                            let item = ClipboardItem(type: .image, imageData: data)
-                            context.insert(item)
-                            saved = true
-                        }
-                    } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
-                        if let text = try? await provider.loadItem(forTypeIdentifier: UTType.plainText.identifier) as? String,
-                           !text.isEmpty {
-                            let item = ClipboardItem(type: .text, textContent: text)
-                            context.insert(item)
-                            saved = true
-                        }
+                    if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier),
+                       let url = try? await provider.loadItem(forTypeIdentifier: UTType.url.identifier) as? URL,
+                       !url.isFileURL {
+                        context.insert(ClipboardItem(type: .link, urlString: url.absoluteString))
+                        saved = true
+                        continue
                     }
 
-                    if saved { break }
+                    if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier),
+                       let data = try? await loadImageData(from: provider) {
+                        context.insert(ClipboardItem(type: .image, imageData: data))
+                        saved = true
+                        continue
+                    }
+
+                    if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier),
+                       let text = try? await provider.loadItem(forTypeIdentifier: UTType.plainText.identifier) as? String,
+                       !text.isEmpty {
+                        if let url = Self.webURL(from: text) {
+                            context.insert(ClipboardItem(type: .link, urlString: url.absoluteString))
+                        } else {
+                            context.insert(ClipboardItem(type: .text, textContent: text))
+                        }
+                        saved = true
+                    }
                 }
-                if saved { break }
             }
 
             if saved {
                 try? context.save()
                 enforceHistoryLimit(context: context)
-                extensionContext?.completeRequest(returningItems: nil)
-            } else {
-                showError()
             }
+
+            dismiss()
         }
     }
 
@@ -134,19 +119,19 @@ class ShareViewController: UIViewController {
         try? context.save()
     }
 
-    private func cancel() {
-        extensionContext?.cancelRequest(withError: NSError(domain: "ClippdShare", code: 0))
+    private func dismiss() {
+        extensionContext?.completeRequest(returningItems: nil)
     }
 
-    private func showError() {
-        let alert = UIAlertController(
-            title: "Error",
-            message: "Could not save. Please try again.",
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak self] _ in
-            self?.cancel()
-        })
-        present(alert, animated: true)
+    private static func webURL(from text: String) -> URL? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              !trimmed.contains(" "),
+              !trimmed.contains("\n"),
+              let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host?.isEmpty == false else { return nil }
+        return url
     }
 }

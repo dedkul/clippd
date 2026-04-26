@@ -167,11 +167,13 @@ struct HomeView: View {
             .searchable(text: $searchText, prompt: "Search clips")
             .onAppear {
                 ClipboardReader.readAndInsertPending(context: modelContext)
+                backfillLinkPreviewsIfNeeded()
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     ClipboardReader.readAndInsertPending(context: modelContext)
                     enforceHistoryLimit()
+                    backfillLinkPreviewsIfNeeded()
                 }
             }
             .overlay(alignment: .bottom) {
@@ -293,6 +295,16 @@ struct HomeView: View {
             }
         } catch {
             showSaveError = true
+        }
+    }
+
+    private func backfillLinkPreviewsIfNeeded() {
+        guard linkPreviewsEnabled else { return }
+        for item in items where item.type == .link
+            && !item.isPending
+            && item.linkPreviewTitle == nil
+            && item.urlString != nil {
+            LinkPreviewFetcher.fetchIfNeeded(for: item, context: modelContext)
         }
     }
 
