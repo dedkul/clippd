@@ -167,6 +167,7 @@ struct HomeView: View {
             if !isSelecting && availableFilters.count > 1 {
                 Section {
                     chips
+                        .padding(.horizontal, -16)
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
                 }
@@ -254,9 +255,11 @@ struct HomeView: View {
                     .accessibilityAddTraits(isOn ? .isSelected : [])
                 }
             }
-            .padding(.horizontal, 20)
             .padding(.vertical, 4)
         }
+        // First chip starts on the same line as the title and the card edges (16pt);
+        // the row itself still scrolls out to the screen edges.
+        .contentMargins(.horizontal, 16, for: .scrollContent)
         .scrollIndicators(.hidden)
     }
 
