@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import TipKit
 
 @main
 struct clippdApp: App {
@@ -7,6 +8,7 @@ struct clippdApp: App {
 
     init() {
         AppSettings.registerDefaults()
+        try? Tips.configure()
         let containerURL = FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: "group.com.ashish.clippd")!
             .appending(path: "clippd.store")
@@ -16,6 +18,9 @@ struct clippdApp: App {
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
+        #if DEBUG
+        SampleData.seedIfRequested(modelContainer.mainContext)
+        #endif
     }
 
     var body: some Scene {

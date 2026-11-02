@@ -1,159 +1,102 @@
 import SwiftUI
-internal import Combine
+
+/// The 36pt square in front of every row: the clip itself when it can show
+/// itself (image, colour, link preview), a quiet grey glyph otherwise.
+struct ClipThumbnail: View {
+    let item: ClipboardItem
+    var size: CGFloat = 36
+
+    var body: some View {
+        content
+            .frame(width: size, height: size)
+            .clipShape(.rect(cornerRadius: 8))
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let image = item.thumbnail {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+        } else if let color = item.hexColor {
+            color
+        } else {
+            Image(systemName: item.type == .link ? "link" : "text.alignleft")
+                .font(.body)
+                .foregroundStyle(Color.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(.fill.tertiary)
+        }
+    }
+}
 
 struct ClipboardItemRow: View {
     let item: ClipboardItem
 
     var body: some View {
         HStack(spacing: 12) {
-            typeIcon
-                .font(.title3)
-                .foregroundStyle(item.isPending ? .white : .secondary)
-                .frame(width: 36, height: 36)
-                .background(item.isPending ? Color.accentColor : Color(.systemGray5))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            VStack(alignment: .leading, spacing: 4) {
-                if item.isPending {
-                    Text("New — tap to save")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.accentColor)
+            ClipThumbnail(item: item)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.title)
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(1)
+                TimelineView(.everyMinute) { context in
+                    Text("\(item.detail) · \(item.dateSaved.shortAge(now: context.date))")
+                        .font(.footnote)
+                        .foregroundStyle(Color.secondary)
+                        .lineLimit(1)
                 }
-
-                contentPreview
-                    .lineLimit(2)
-
-                RelativeTimeView(date: item.dateSaved)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-
-            Spacer(minLength: 0)
-
-            if item.type == .image, let data = item.imageData, let uiImage = UIImage(data: data) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 48, height: 48)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-            } else if item.type == .link, let data = item.linkPreviewThumbnail, let uiImage = UIImage(data: data) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 48, height: 48)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
             }
         }
-        .padding(.vertical, 4)
-        .listRowBackground(
-            item.isPending
-                ? Color.accentColor.opacity(0.12)
-                : nil
-        )
-    }
-
-    @ViewBuilder
-    private var typeIcon: some View {
-        switch item.type {
-        case .text:
-            Image(systemName: "doc.text")
-        case .image:
-            Image(systemName: "photo")
-        case .link:
-            Image(systemName: "link")
-        }
-    }
-
-    @ViewBuilder
-    private var contentPreview: some View {
-        switch item.type {
-        case .text:
-            Text(item.textContent ?? "")
-                .font(.subheadline)
-
-        case .image:
-            Text("Image")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-        case .link:
-            if let title = item.linkPreviewTitle, !title.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.subheadline)
-                    Text(item.urlString ?? "")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                Text(item.urlString ?? "")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.accentColor)
-            }
-        }
+        .accessibilityElement(children: .combine)
     }
 }
 
-struct RelativeTimeView: View {
-    let date: Date
-    @State private var timeString: String = ""
-    
-    // Timer that fires every 60 seconds
-    let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
-    
+/// A Board tile. Visual clips (colours, images, previews) get space to show themselves.
+struct ClipCard: View {
+    let item: ClipboardItem
+
     var body: some View {
-        Text(timeString)
-            .onAppear { updateTimeString() }
-            .onReceive(timer) { _ in updateTimeString() }
-    }
-    
-    private func updateTimeString() {
-        let now = Date()
-        let diff = now.timeIntervalSince(date)
-        
-        if diff < 60 {
-            timeString = "Just now"
-        } else if diff < 3600 {
-            let minutes = Int(diff / 60)
-            timeString = "\(minutes) minute\(minutes == 1 ? "" : "s") ago"
-        } else if diff < 86400 {
-            let hours = Int(diff / 3600)
-            timeString = "\(hours) hour\(hours == 1 ? "" : "s") ago"
-        } else if diff < 604800 {
-            let days = Int(diff / 86400)
-            timeString = "\(days) day\(days == 1 ? "" : "s") ago"
+        if let color = item.hexColor {
+            VStack(alignment: .leading, spacing: 2) {
+                Spacer(minLength: 40)
+                Text("Color").font(.caption)
+                Text(item.title).font(.title2.bold())
+            }
+            .foregroundStyle(.white)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(color, in: .rect(cornerRadius: 16))
         } else {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MMM d"
-            timeString = formatter.string(from: date)
+            VStack(alignment: .leading, spacing: 8) {
+                if let image = item.thumbnail {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity, minHeight: 80, maxHeight: 140)
+                        .clipShape(.rect(cornerRadius: 10))
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.isPinned ? "Pinned" : item.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(item.title)
+                        .font(.subheadline)
+                        .lineLimit(3)
+                }
+            }
+            .padding(item.thumbnail == nil ? 12 : 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
         }
     }
 }
 
 #Preview {
     List {
-        ClipboardItemRow(item: ClipboardItem(
-            type: .text,
-            textContent: "Hello, this is some sample copied text that might be long enough to clip.",
-            isPending: true
-        ))
-        ClipboardItemRow(item: ClipboardItem(
-            type: .text,
-            textContent: "A previously saved text snippet."
-        ))
-        ClipboardItemRow(item: ClipboardItem(
-            type: .link,
-            urlString: "https://apple.com/swift"
-        ))
-        ClipboardItemRow(item: ClipboardItem(
-            type: .link,
-            urlString: "https://developer.apple.com",
-            linkPreviewTitle: "Apple Developer"
-        ))
-        ClipboardItemRow(item: ClipboardItem(
-            type: .image
-        ))
+        ClipboardItemRow(item: ClipboardItem(type: .text, textContent: "Flight QF 401 departs 7:15 am, gate 34"))
+        ClipboardItemRow(item: ClipboardItem(type: .text, textContent: "#5E5CE6"))
+        ClipboardItemRow(item: ClipboardItem(type: .link, urlString: "https://figma.com/design/pk6F"))
+        ClipboardItemRow(item: ClipboardItem(type: .link, urlString: "https://youtube.com/watch?v=1", linkPreviewTitle: "How Apple designs for privacy"))
     }
-    .listStyle(.plain)
 }

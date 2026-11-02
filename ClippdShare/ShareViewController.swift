@@ -107,9 +107,12 @@ class ShareViewController: UIViewController {
     }
 
     private func enforceHistoryLimit(context: ModelContext) {
-        let limit = UserDefaults(suiteName: "group.com.ashish.clippd")?.integer(forKey: "historyLimit") ?? 20
+        // integer(forKey:) returns 0 when the user never changed the limit: the app's
+        // registered default lives only in the app's process, not on disk.
+        let stored = UserDefaults(suiteName: "group.com.ashish.clippd")?.integer(forKey: "historyLimit") ?? 0
+        let limit = stored > 0 ? stored : 50
         let descriptor = FetchDescriptor<ClipboardItem>(
-            predicate: #Predicate { !$0.isPending },
+            predicate: #Predicate { !$0.isPinned },
             sortBy: [SortDescriptor(\ClipboardItem.dateSaved, order: .reverse)]
         )
         guard let all = try? context.fetch(descriptor), all.count > limit else { return }

@@ -13,16 +13,11 @@ struct ContentView: View {
     private var hasSeenOnboarding = AppSettings.Defaults.hasSeenOnboarding
 
     var body: some View {
-        Group {
-            if hasSeenOnboarding {
-                HomeView()
-                    .transition(.opacity)
-            } else {
-                OnboardingView()
-                    .transition(.opacity)
+        HomeView()
+            .sheet(isPresented: .constant(!hasSeenOnboarding)) {
+                OnboardingView { hasSeenOnboarding = true }
             }
-        }
-        .animation(.easeInOut(duration: 0.4), value: hasSeenOnboarding)
+            .tint(.indigo)
     }
 }
 

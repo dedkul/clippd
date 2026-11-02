@@ -8,19 +8,22 @@ enum AppSettings {
         static let historyLimit = "historyLimit"
         static let linkPreviewsEnabled = "linkPreviewsEnabled"
         static let hasSeenOnboarding = "hasSeenOnboarding"
+        static let layout = "layout"
     }
 
     enum Defaults {
-        static let historyLimit = 20
-        static let linkPreviewsEnabled = false
+        static let historyLimit = 50
+        static let linkPreviewsEnabled = true
         static let hasSeenOnboarding = false
+        static let layout = "list"
     }
 
     static func registerDefaults() {
         store.register(defaults: [
             Keys.historyLimit: Defaults.historyLimit,
             Keys.linkPreviewsEnabled: Defaults.linkPreviewsEnabled,
-            Keys.hasSeenOnboarding: Defaults.hasSeenOnboarding
+            Keys.hasSeenOnboarding: Defaults.hasSeenOnboarding,
+            Keys.layout: Defaults.layout
         ])
     }
 }

@@ -1,61 +1,82 @@
 import SwiftUI
+import TipKit
 
+/// First-launch welcome sheet, in the style of Apple's own "Welcome to Notes".
 struct OnboardingView: View {
-    @AppStorage(AppSettings.Keys.hasSeenOnboarding, store: AppSettings.store)
-    private var hasSeenOnboarding = AppSettings.Defaults.hasSeenOnboarding
+    let onContinue: () -> Void
 
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 8) {
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 36))
+                        .foregroundStyle(.white)
+                        .frame(width: 76, height: 76)
+                        .background(.tint, in: .rect(cornerRadius: 18))
+                        .padding(.bottom, 12)
+                        .accessibilityHidden(true)
 
-            Image(systemName: "clipboard.fill")
-                .font(.system(size: 72))
-                .foregroundStyle(Color.accentColor)
+                    Text("Welcome to Clippd")
+                        .font(.largeTitle.bold())
+                    Text("The clipboard history iOS doesn’t have.")
+                        .foregroundStyle(.secondary)
+                        .padding(.bottom, 32)
 
-            VStack(spacing: 12) {
-                Text("Never lose a copied item again")
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .multilineTextAlignment(.center)
-
-                Text("Clippd saves things you copy — text, images, and links — so you can find them later. Open the app after copying, or use the share button from any app.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
+                    VStack(alignment: .leading, spacing: 24) {
+                        feature("doc.on.clipboard", "Tap Paste to save",
+                                "Copy anything in any app, then tap Paste in Clippd. That one tap is your permission.")
+                        feature("square.and.arrow.up", "Save from the Share menu",
+                                "In Safari, Photos and more, tap Share › Clippd. No need to open the app.")
+                        feature("lock.fill", "Stays on this iPhone",
+                                "No account, no cloud. Clippd never reads your clipboard on its own.")
+                    }
+                }
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+                .padding(.top, 56)
             }
 
-            HStack(spacing: 8) {
-                Image(systemName: "lock.shield")
-                    .foregroundStyle(Color.accentColor)
-                Text("Everything stays on your device. Always.")
+            Button(action: onContinue) {
+                Text("Continue")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.horizontal, 32)
+            .padding(.bottom, 24)
+        }
+        .interactiveDismissDisabled()
+    }
+
+    private func feature(_ symbol: String, _ title: String, _ message: String) -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            Image(systemName: symbol)
+                .font(.title)
+                .foregroundStyle(.tint)
+                .frame(width: 40)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline)
+                Text(message)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            .padding()
-            .background(Color(.systemGray6))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-
-            Spacer()
-
-            Button {
-                withAnimation {
-                    hasSeenOnboarding = true
-                }
-            } label: {
-                Text("Get Started")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-            }
-            .buttonStyle(.borderedProminent)
-            .padding(.horizontal, 32)
-            .padding(.bottom, 32)
+            .multilineTextAlignment(.leading)
         }
-        .padding()
     }
 }
 
+/// One tip, shown once, pointing at Paste on the empty first-launch screen.
+struct PasteTip: Tip {
+    var title: Text { Text("Save what you copied") }
+    var message: Text? { Text("Tap Paste. iOS won’t ask for permission — tapping this button is the permission.") }
+    var image: Image? { Image(systemName: "doc.on.clipboard") }
+}
+
 #Preview {
-    OnboardingView()
+    Color.clear.sheet(isPresented: .constant(true)) {
+        OnboardingView {}
+    }
 }
