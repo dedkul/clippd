@@ -1,446 +1,519 @@
 import SwiftUI
 import SwiftData
+import TipKit
+import UniformTypeIdentifiers
 
-enum ClipboardFilter: String, CaseIterable {
-    case all = "All"
-    case text = "Text"
-    case image = "Image"
-    case link = "Link"
+/// Smart chips. A chip only appears when at least one clip matches it.
+enum ClipFilter: CaseIterable, Hashable {
+    case all, youTube, links, text, colors, images
+
+    var title: String {
+        switch self {
+        case .all: "All"
+        case .youTube: "YouTube"
+        case .links: "Links"
+        case .text: "Text"
+        case .colors: "Colors"
+        case .images: "Images"
+        }
+    }
+
+    func matches(_ item: ClipboardItem) -> Bool {
+        switch self {
+        case .all: true
+        case .youTube: item.kind == .youTube
+        case .links: item.type == .link
+        case .text: item.kind == .text
+        case .colors: item.kind == .color
+        case .images: item.kind == .image
+        }
+    }
+}
+
+private struct ClipSection: Identifiable {
+    let id: String
+    let title: String
+    let items: [ClipboardItem]
+}
+
+private struct Toast: Equatable {
+    let title: String
+    var detail: String?
 }
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \ClipboardItem.dateSaved, order: .reverse) private var items: [ClipboardItem]
 
     @AppStorage(AppSettings.Keys.historyLimit, store: AppSettings.store)
     private var historyLimit = AppSettings.Defaults.historyLimit
-
     @AppStorage(AppSettings.Keys.linkPreviewsEnabled, store: AppSettings.store)
     private var linkPreviewsEnabled = AppSettings.Defaults.linkPreviewsEnabled
+    @AppStorage(AppSettings.Keys.layout, store: AppSettings.store)
+    private var layout = AppSettings.Defaults.layout
+    @AppStorage(AppSettings.Keys.hasSeenOnboarding, store: AppSettings.store)
+    private var hasSeenOnboarding = AppSettings.Defaults.hasSeenOnboarding
 
-    @Environment(\.scenePhase) private var scenePhase
     @State private var searchText = ""
-    @State private var selectedFilter: ClipboardFilter = .all
-    @State private var isSelectMode = false
-    @State private var selectedItemIDs: Set<UUID> = []
-    @State private var showSaveError = false
-    @State private var showCopyError = false
-    @State private var showDeleteError = false
-    @State private var showBulkDeleteConfirm = false
-    @State private var showCopiedToast = false
-    @State private var hasScrolled = false
+    @State private var filter: ClipFilter = .all
+    @State private var isSelecting = false
+    @State private var selection: Set<UUID> = []
+    @State private var showSettings = false
+    @State private var showDeleteConfirm = false
+    @State private var shareItems: [Any]?
+    @State private var toast: Toast?
+    @State private var toastTask: Task<Void, Never>?
+    @State private var savedCount = 0
 
-    private var filteredItems: [ClipboardItem] {
-        var result = items
+    private let pasteTip = PasteTip()
 
-        switch selectedFilter {
-        case .all: break
-        case .text: result = result.filter { $0.type == .text }
-        case .image: result = result.filter { $0.type == .image }
-        case .link: result = result.filter { $0.type == .link }
-        }
+    // MARK: Derived data
 
-        guard !searchText.isEmpty else { return result }
+    private var availableFilters: [ClipFilter] {
+        ClipFilter.allCases.filter { f in f == .all || items.contains(where: f.matches) }
+    }
 
-        let query = searchText.localizedLowercase
-        return result.filter { item in
-            switch item.type {
-            case .text:
-                return item.textContent?.localizedCaseInsensitiveContains(query) == true
-            case .link:
-                return item.urlString?.localizedCaseInsensitiveContains(query) == true
-                    || item.linkPreviewTitle?.localizedCaseInsensitiveContains(query) == true
-            case .image:
-                return true
-            }
+    private var visibleItems: [ClipboardItem] {
+        let filtered = items.filter(filter.matches)
+        guard !searchText.isEmpty else { return filtered }
+        return filtered.filter { item in
+            [item.title, item.textContent, item.urlString, item.host]
+                .compactMap { $0 }
+                .contains { $0.localizedCaseInsensitiveContains(searchText) }
         }
     }
+
+    private var sections: [ClipSection] {
+        let visible = visibleItems
+        let pinned = visible.filter(\.isPinned)
+        var result = pinned.isEmpty ? [] : [ClipSection(id: "pinned", title: "Pinned", items: pinned)]
+        let calendar = Calendar.current
+        let byDay = Dictionary(grouping: visible.filter { !$0.isPinned }) { calendar.startOfDay(for: $0.dateSaved) }
+        for day in byDay.keys.sorted(by: >) {
+            result.append(ClipSection(id: day.formatted(.iso8601), title: Self.title(for: day), items: byDay[day] ?? []))
+        }
+        return result
+    }
+
+    private var selectedItems: [ClipboardItem] {
+        items.filter { selection.contains($0.id) }
+    }
+
+    // MARK: Body
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                if !hasScrolled {
-                    HStack {
-                        Text("Clippd")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+            content
+                .background { HomeBackground() }
+                .navigationTitle(isSelecting ? selectionTitle : "Clippd")
+                .toolbarTitleDisplayMode(.inlineLarge)
+                .searchable(text: $searchText, prompt: "Search clips")
+                .toolbar { toolbarContent }
+                .sheet(isPresented: $showSettings) {
+                    NavigationStack { SettingsView() }
                 }
-
-                filterBar
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-
-                if items.isEmpty {
-                    emptyState
-                } else if filteredItems.isEmpty && !searchText.isEmpty {
-                    searchEmptyState
-                } else if filteredItems.isEmpty {
-                    filteredEmptyState
-                } else {
-                    if isSelectMode {
-                        selectModeBar
-                    }
-                    List {
-                        ForEach(filteredItems) { item in
-                            Group {
-                                if isSelectMode {
-                                    Button {
-                                        toggleSelection(item)
-                                    } label: {
-                                        HStack(spacing: 12) {
-                                            Image(systemName: selectedItemIDs.contains(item.id) ? "checkmark.circle.fill" : "circle")
-                                                .foregroundStyle(selectedItemIDs.contains(item.id) ? Color.accentColor : .secondary)
-                                                .font(.title3)
-                                            ClipboardItemRow(item: item)
-                                        }
-                                    }
-                                    .buttonStyle(.plain)
-                                } else if item.isPending {
-                                    Button {
-                                        saveItem(item)
-                                    } label: {
-                                        ClipboardItemRow(item: item)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .swipeActions(edge: .trailing) {
-                                        Button(role: .destructive) {
-                                            deleteItem(item)
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
-                                } else {
-                                    Button {
-                                        copyToClipboard(item)
-                                    } label: {
-                                        ClipboardItemRow(item: item)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .swipeActions(edge: .trailing) {
-                                        Button(role: .destructive) {
-                                            deleteItem(item)
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
-                                }
-                            }
-                            .background {
-                                if item.id == filteredItems.first?.id {
-                                    scrollTracker
-                                }
-                            }
-                        }
-                    }
-                    .listStyle(.plain)
-                    .coordinateSpace(name: "scroll")
-                    .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
-                        if value < -20 && !hasScrolled {
-                            withAnimation(.snappy(duration: 0.3)) {
-                                hasScrolled = true
-                            }
-                        } else if value > -5 && hasScrolled {
-                            withAnimation(.snappy(duration: 0.3)) {
-                                hasScrolled = false
-                            }
-                        }
-                    }
-                    .onChange(of: filteredItems.isEmpty) { _, isEmpty in
-                        if isEmpty && hasScrolled {
-                            withAnimation(.snappy(duration: 0.3)) {
-                                hasScrolled = false
-                            }
-                        }
-                    }
-
-                    if isSelectMode {
-                        bulkDeleteBar
+                .sheet(isPresented: Binding(get: { shareItems != nil }, set: { if !$0 { shareItems = nil } })) {
+                    ActivityView(items: shareItems ?? [])
+                        .presentationDetents([.medium, .large])
+                }
+                .alert(selection.count == 1 ? "Delete 1 clip?" : "Delete \(selection.count) clips?",
+                       isPresented: $showDeleteConfirm) {
+                    Button("Delete", role: .destructive, action: deleteSelected)
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("They’ll be removed from this iPhone. This can’t be undone.")
+                }
+                .overlay(alignment: .bottom) { toastView }
+                .sensoryFeedback(.success, trigger: savedCount)
+                .onChange(of: availableFilters) { _, filters in
+                    if !filters.contains(filter) { filter = .all }
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active {
+                        enforceHistoryLimit()
+                        backfillLinkPreviews()
                     }
                 }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, prompt: "Search clips")
-            .onAppear {
-                ClipboardReader.readAndInsertPending(context: modelContext)
-                backfillLinkPreviewsIfNeeded()
-            }
-            .onChange(of: scenePhase) { _, newPhase in
-                if newPhase == .active {
-                    ClipboardReader.readAndInsertPending(context: modelContext)
-                    enforceHistoryLimit()
-                    backfillLinkPreviewsIfNeeded()
-                }
-            }
-            .overlay(alignment: .bottom) {
-                Group {
-                    if showCopiedToast {
-                        ToastView(message: "Copied!")
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                            .padding(.bottom, 32)
-                    }
-                }
-                .animation(.easeInOut(duration: 0.3), value: showCopiedToast)
-            }
-            .alert("Could not save item. Try freeing up some space.", isPresented: $showSaveError) {
-                Button("OK", role: .cancel) {}
-            }
-            .alert("Could not copy. Please try again.", isPresented: $showCopyError) {
-                Button("OK", role: .cancel) {}
-            }
-            .alert("Could not delete. Please try again.", isPresented: $showDeleteError) {
-                Button("OK", role: .cancel) {}
-            }
-            .alert("Delete \(selectedItemIDs.count) items? This cannot be undone.", isPresented: $showBulkDeleteConfirm) {
-                Button("Delete", role: .destructive) {
-                    deleteSelectedItems()
-                }
-                Button("Cancel", role: .cancel) {}
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    NavigationLink {
-                        SettingsView()
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .disabled(isSelectMode)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(isSelectMode ? "Done" : "Select") {
-                        withAnimation {
-                            isSelectMode.toggle()
-                            if !isSelectMode {
-                                selectedItemIDs.removeAll()
-                            }
-                        }
-                    }
-                    .disabled(items.isEmpty)
-                }
-            }
+                .onAppear(perform: backfillLinkPreviews)
         }
     }
 
-    private func copyToClipboard(_ item: ClipboardItem) {
-        let pasteboard = UIPasteboard.general
-        switch item.type {
-        case .text:
-            guard let text = item.textContent else { showCopyError = true; return }
-            pasteboard.string = text
-        case .image:
-            guard let data = item.imageData, let image = UIImage(data: data) else { showCopyError = true; return }
-            pasteboard.image = image
-        case .link:
-            guard let urlString = item.urlString, let url = URL(string: urlString) else { showCopyError = true; return }
-            pasteboard.url = url
-        }
-        withAnimation {
-            showCopiedToast = true
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation {
-                showCopiedToast = false
+    @ViewBuilder
+    private var content: some View {
+        if items.isEmpty {
+            ContentUnavailableView {
+                Label("No clips yet", systemImage: "doc.on.clipboard")
+            } description: {
+                Text("Copy something in any app,\nthen come back and tap Paste.")
             }
-        }
-    }
-
-    private func toggleSelection(_ item: ClipboardItem) {
-        if selectedItemIDs.contains(item.id) {
-            selectedItemIDs.remove(item.id)
+        } else if visibleItems.isEmpty {
+            ContentUnavailableView.search(text: searchText)
+        } else if layout == "board" && !isSelecting {
+            board
         } else {
-            selectedItemIDs.insert(item.id)
+            list
         }
     }
 
-    private func selectAll() {
-        selectedItemIDs = Set(filteredItems.map(\.id))
+    private var selectionTitle: String {
+        selection.isEmpty ? "Select Clips" : "\(selection.count) Selected"
     }
 
-    private func deleteSelectedItems() {
-        do {
-            for item in items where selectedItemIDs.contains(item.id) {
-                modelContext.delete(item)
+    // MARK: List
+
+    private var list: some View {
+        List(selection: isSelecting ? $selection : nil) {
+            if !isSelecting && availableFilters.count > 1 {
+                Section {
+                    chips
+                        .padding(.horizontal, -16)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                }
+                .listSectionSpacing(4)
             }
-            try modelContext.save()
-            selectedItemIDs.removeAll()
-            withAnimation {
-                isSelectMode = false
+            ForEach(sections) { section in
+                Section("\(section.title) · \(section.items.count)") {
+                    ForEach(section.items) { item in
+                        row(item)
+                    }
+                }
             }
-        } catch {
-            showDeleteError = true
+        }
+        .listStyle(.insetGrouped)
+        .contentMargins(.top, 4, for: .scrollContent)
+        .scrollContentBackground(.hidden)
+        .environment(\.editMode, .constant(isSelecting ? .active : .inactive))
+    }
+
+    @ViewBuilder
+    private func row(_ item: ClipboardItem) -> some View {
+        if isSelecting {
+            ClipboardItemRow(item: item)
+                .tag(item.id)
+        } else {
+            Button { copy(item) } label: {
+                ClipboardItemRow(item: item)
+            }
+            .swipeActions(edge: .trailing) {
+                Button("Delete", systemImage: "trash", role: .destructive) { delete([item]) }
+                Button(item.isPinned ? "Unpin" : "Pin", systemImage: item.isPinned ? "pin.slash" : "pin") {
+                    setPinned(!item.isPinned, [item])
+                }
+                .tint(.orange)
+            }
+            .contextMenu { menu(for: item) }
         }
     }
 
-    private func deleteItem(_ item: ClipboardItem) {
-        do {
+    // MARK: Board
+
+    private var board: some View {
+        let ordered = visibleItems.filter(\.isPinned) + visibleItems.filter { !$0.isPinned }
+        let columns = [0, 1].map { column in ordered.enumerated().filter { $0.offset % 2 == column }.map(\.element) }
+        return ScrollView {
+            if availableFilters.count > 1 {
+                chips.padding(.bottom, 8)
+            }
+            HStack(alignment: .top, spacing: 12) {
+                ForEach(columns.indices, id: \.self) { index in
+                    LazyVStack(spacing: 12) {
+                        ForEach(columns[index]) { item in
+                            Button { copy(item) } label: { ClipCard(item: item) }
+                                .buttonStyle(.plain)
+                                .contextMenu { menu(for: item) }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    // MARK: Pieces
+
+    private var chips: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                ForEach(availableFilters, id: \.self) { chip in
+                    let isOn = chip == filter
+                    Button {
+                        withAnimation(.snappy) { filter = chip }
+                    } label: {
+                        HStack(spacing: 5) {
+                            if chip == .youTube { YouTubeMark() }
+                            Text(chip.title)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.small)
+                    .tint(isOn ? Color.accentColor : .gray)
+                    .foregroundStyle(isOn ? .white : .primary)
+                    .background(isOn ? Color.accentColor : .clear, in: .capsule)
+                    .accessibilityAddTraits(isOn ? .isSelected : [])
+                }
+            }
+            .padding(.vertical, 4)
+        }
+        // First chip starts on the same line as the title and the card edges (16pt);
+        // the row itself still scrolls out to the screen edges.
+        .contentMargins(.horizontal, 16, for: .scrollContent)
+        .scrollIndicators(.hidden)
+    }
+
+    @ViewBuilder
+    private func menu(for item: ClipboardItem) -> some View {
+        Button("Copy", systemImage: "doc.on.doc") { copy(item) }
+        Button(item.isPinned ? "Unpin" : "Pin", systemImage: item.isPinned ? "pin.slash" : "pin") {
+            setPinned(!item.isPinned, [item])
+        }
+        Button("Share", systemImage: "square.and.arrow.up") { shareItems = Self.shareable([item]) }
+        Button("Delete", systemImage: "trash", role: .destructive) { delete([item]) }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        if isSelecting {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done", systemImage: "checkmark") {
+                    withAnimation { isSelecting = false; selection.removeAll() }
+                }
+            }
+            ToolbarItemGroup(placement: .bottomBar) {
+                let allPinned = !selectedItems.isEmpty && selectedItems.allSatisfy(\.isPinned)
+                Button("Copy", systemImage: "doc.on.doc") { copySelected() }
+                Button(allPinned ? "Unpin" : "Pin", systemImage: allPinned ? "pin.slash" : "pin") {
+                    setPinned(!allPinned, selectedItems)
+                }
+                Spacer()
+                Button("Share", systemImage: "square.and.arrow.up") { shareItems = Self.shareable(selectedItems) }
+                Button("Delete", systemImage: "trash", role: .destructive) { showDeleteConfirm = true }
+                    .tint(.red)
+            }
+        } else {
+            ToolbarItem(placement: .topBarTrailing) { moreMenu }
+            if #available(iOS 26, *) {
+                DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                ToolbarSpacer(.fixed, placement: .bottomBar)
+            }
+            ToolbarItem(placement: .bottomBar) { pasteButton }
+        }
+    }
+
+    private var moreMenu: some View {
+        Menu("More", systemImage: "ellipsis") {
+            Picker("Layout", selection: $layout) {
+                Label("List", systemImage: "list.bullet").tag("list")
+                Label("Board", systemImage: "square.grid.2x2").tag("board")
+            }
+            Section {
+                Button("Select", systemImage: "checkmark.circle") {
+                    withAnimation { isSelecting = true }
+                }
+                .disabled(items.isEmpty)
+            }
+            Section {
+                Button("Settings", systemImage: "gear") { showSettings = true }
+            }
+        }
+        .tint(.primary)
+    }
+
+    private var pasteButton: some View {
+        PasteButton(supportedContentTypes: [.url, .image, .plainText]) { providers in
+            paste(providers)
+        }
+        .labelStyle(.titleAndIcon)
+        .buttonBorderShape(.capsule)
+        .popoverTip(items.isEmpty && hasSeenOnboarding ? pasteTip : nil, arrowEdge: .bottom)
+    }
+
+    @ViewBuilder
+    private var toastView: some View {
+        Group {
+            if let toast {
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(toast.title).font(.subheadline.weight(.semibold))
+                        if let detail = toast.detail {
+                            Text(detail).font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.leading, 14)
+                .padding(.trailing, 20)
+                .padding(.vertical, 10)
+                .background(.regularMaterial, in: .capsule)
+                .padding(.bottom, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .animation(.snappy, value: toast)
+    }
+
+    // MARK: Actions
+
+    private func paste(_ providers: [NSItemProvider]) {
+        Task {
+            let outcome = await ClipboardReader.handlePaste(providers: providers, context: modelContext)
+            switch outcome {
+            case .saved(let item):
+                try? modelContext.save()
+                enforceHistoryLimit()
+                if linkPreviewsEnabled && item.type == .link {
+                    LinkPreviewFetcher.fetchIfNeeded(for: item, context: modelContext)
+                }
+                savedCount += 1
+                pasteTip.invalidate(reason: .actionPerformed)
+                let detail = item.type == .link ? "Link · \(item.host ?? "")" : item.detail
+                show(Toast(title: "Saved", detail: detail))
+            case .duplicate:
+                show(Toast(title: "Already saved", detail: "It’s already in your list"))
+            case .empty:
+                show(Toast(title: "Nothing to paste"))
+            }
+        }
+    }
+
+    private func copy(_ item: ClipboardItem) {
+        guard let value = Self.pasteboardValue(item) else { return }
+        UIPasteboard.general.setItems([value])
+        show(Toast(title: "Copied", detail: item.detail))
+    }
+
+    private func copySelected() {
+        UIPasteboard.general.setItems(selectedItems.compactMap { Self.pasteboardValue($0) })
+        show(Toast(title: "Copied", detail: selection.count == 1 ? nil : "\(selection.count) clips"))
+    }
+
+    private func setPinned(_ pinned: Bool, _ targets: [ClipboardItem]) {
+        withAnimation {
+            for item in targets { item.isPinned = pinned }
+            try? modelContext.save()
+        }
+    }
+
+    private func delete(_ targets: [ClipboardItem]) {
+        withAnimation {
+            for item in targets { modelContext.delete(item) }
+            try? modelContext.save()
+        }
+    }
+
+    private func deleteSelected() {
+        delete(selectedItems)
+        selection.removeAll()
+        withAnimation { isSelecting = false }
+    }
+
+    private func show(_ newToast: Toast) {
+        toastTask?.cancel()
+        toast = newToast
+        toastTask = Task {
+            try? await Task.sleep(for: .seconds(1.6))
+            guard !Task.isCancelled else { return }
+            toast = nil
+        }
+    }
+
+    /// Pinned clips never count towards the history limit.
+    private func enforceHistoryLimit() {
+        let unpinned = items.filter { !$0.isPinned }
+        guard unpinned.count > historyLimit else { return }
+        for item in unpinned.suffix(unpinned.count - historyLimit) {
             modelContext.delete(item)
-            try modelContext.save()
-        } catch {
-            showDeleteError = true
         }
+        try? modelContext.save()
     }
 
-    private func saveItem(_ item: ClipboardItem) {
-        do {
-            item.isPending = false
-            item.dateSaved = .now
-            try modelContext.save()
-            enforceHistoryLimit()
-            if linkPreviewsEnabled && item.type == .link {
-                LinkPreviewFetcher.fetchIfNeeded(for: item, context: modelContext)
-            }
-        } catch {
-            showSaveError = true
-        }
-    }
-
-    private func backfillLinkPreviewsIfNeeded() {
+    private func backfillLinkPreviews() {
         guard linkPreviewsEnabled else { return }
-        for item in items where item.type == .link
-            && !item.isPending
-            && item.linkPreviewTitle == nil
-            && item.urlString != nil {
+        for item in items where item.type == .link && item.linkPreviewTitle == nil && item.urlString != nil {
             LinkPreviewFetcher.fetchIfNeeded(for: item, context: modelContext)
         }
     }
 
-    private func enforceHistoryLimit() {
-        let saved = items.filter { !$0.isPending }
-        guard saved.count > historyLimit else { return }
-        let overflow = saved.suffix(saved.count - historyLimit)
-        for item in overflow {
-            modelContext.delete(item)
+    // MARK: Helpers
+
+    private static func title(for day: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(day) { return "Today" }
+        if calendar.isDateInYesterday(day) { return "Yesterday" }
+        if let days = calendar.dateComponents([.day], from: day, to: .now).day, days < 7 {
+            return day.formatted(.dateTime.weekday(.wide))
+        }
+        return day.formatted(.dateTime.month(.abbreviated).day())
+    }
+
+    private static func pasteboardValue(_ item: ClipboardItem) -> [String: Any]? {
+        switch item.type {
+        case .text:
+            item.textContent.map { [UTType.plainText.identifier: $0] }
+        case .link:
+            item.urlString.flatMap(URL.init(string:)).map { [UTType.url.identifier: $0] }
+        case .image:
+            item.imageData.flatMap(UIImage.init(data:)).map { [UTType.image.identifier: $0] }
         }
     }
 
-    private var selectModeBar: some View {
-        HStack {
-            Button(selectedItemIDs.count == filteredItems.count ? "Deselect All" : "Select All") {
-                if selectedItemIDs.count == filteredItems.count {
-                    selectedItemIDs.removeAll()
-                } else {
-                    selectAll()
-                }
+    private static func shareable(_ targets: [ClipboardItem]) -> [Any] {
+        targets.compactMap { item -> Any? in
+            switch item.type {
+            case .text: item.textContent
+            case .link: item.urlString.flatMap(URL.init(string:))
+            case .image: item.imageData.flatMap(UIImage.init(data:))
             }
-            .font(.subheadline)
-            Spacer()
-            Text("\(selectedItemIDs.count) selected")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 6)
-    }
-
-    private var bulkDeleteBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-            HStack(spacing: 16) {
-                Button(role: .destructive) {
-                    if !selectedItemIDs.isEmpty {
-                        showBulkDeleteConfirm = true
-                    }
-                } label: {
-                    Label("Delete Selected", systemImage: "trash")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.red)
-                .disabled(selectedItemIDs.isEmpty)
-            }
-            .padding()
-        }
-        .background(Color(.systemBackground))
-    }
-
-    private var filterBar: some View {
-        HStack(spacing: 8) {
-            ForEach(ClipboardFilter.allCases, id: \.self) { filter in
-                FilterPill(
-                    title: filter.rawValue,
-                    isSelected: selectedFilter == filter
-                ) {
-                    withAnimation(.snappy(duration: 0.2)) {
-                        selectedFilter = filter
-                    }
-                }
-            }
-            Spacer()
-        }
-    }
-
-    private var emptyState: some View {
-        ContentUnavailableView {
-            Label("Nothing saved yet", systemImage: "clipboard")
-        } description: {
-            Text("Copy something and come back!")
-        }
-    }
-
-    private var filteredEmptyState: some View {
-        ContentUnavailableView {
-            Label("No \(selectedFilter.rawValue.lowercased()) items", systemImage: "line.3.horizontal.decrease.circle")
-        } description: {
-            Text("Try a different filter.")
-        }
-    }
-
-    private var searchEmptyState: some View {
-        ContentUnavailableView.search(text: searchText)
-    }
-
-    private var scrollTracker: some View {
-        GeometryReader { proxy in
-            Color.clear
-                .preference(key: ScrollOffsetPreferenceKey.self, value: proxy.frame(in: .named("scroll")).minY)
         }
     }
 }
 
-struct ScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value += nextValue()
-    }
-}
-
-struct ToastView: View {
-    let message: String
+/// Grouped background with a faint indigo glow at the top (the "8D" look).
+private struct HomeBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        Label(message, systemImage: "checkmark.circle.fill")
-            .font(.subheadline)
-            .fontWeight(.medium)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-            .background(.thinMaterial, in: Capsule())
+        Color(.systemGroupedBackground)
+            .overlay(alignment: .top) {
+                LinearGradient(
+                    colors: [Color.indigo.opacity(colorScheme == .dark ? 0.32 : 0.2), .clear],
+                    startPoint: .top, endPoint: .bottom
+                )
+                .frame(height: 420)
+            }
+            .ignoresSafeArea()
     }
 }
 
-struct FilterPill: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-
+/// Small YouTube mark for the YouTube chip.
+/// TODO before release: replace with the official icon from YouTube's brand resources.
+private struct YouTubeMark: View {
     var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(isSelected ? .semibold : .regular)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-                .background(isSelected ? Color.accentColor : Color(.systemGray5))
-                .foregroundStyle(isSelected ? .white : .primary)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
+        RoundedRectangle(cornerRadius: 3.5)
+            .fill(Color(red: 1, green: 0, blue: 0.2))
+            .frame(width: 17, height: 12)
+            .overlay {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 6))
+                    .foregroundStyle(.white)
+            }
+            .accessibilityHidden(true)
     }
+}
+
+private struct ActivityView: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
 #Preview {

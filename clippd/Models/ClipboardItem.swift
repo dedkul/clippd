@@ -17,7 +17,7 @@ final class ClipboardItem {
     var linkPreviewTitle: String?
     @Attribute(.externalStorage) var linkPreviewThumbnail: Data?
     var dateSaved: Date
-    var isPending: Bool
+    var isPinned: Bool = false
 
     init(
         type: ClipboardItemType,
@@ -26,8 +26,7 @@ final class ClipboardItem {
         urlString: String? = nil,
         linkPreviewTitle: String? = nil,
         linkPreviewThumbnail: Data? = nil,
-        dateSaved: Date = .now,
-        isPending: Bool = false
+        dateSaved: Date = .now
     ) {
         self.id = UUID()
         self.type = type
@@ -37,6 +36,5 @@ final class ClipboardItem {
         self.linkPreviewTitle = linkPreviewTitle
         self.linkPreviewThumbnail = linkPreviewThumbnail
         self.dateSaved = dateSaved
-        self.isPending = isPending
     }
 }

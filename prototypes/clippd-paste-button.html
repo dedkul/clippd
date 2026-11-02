@@ -1,0 +1,641 @@
+<title>Clippd — Paste Button Placement</title>
+<style>
+  :root {
+    --page-bg: #f2f2f4;
+    --page-ink: #1c1c1e;
+    --page-sub: #6e6e73;
+    --card-bg: #ffffff;
+    --card-border: #e5e5ea;
+
+    /* iOS light palette */
+    --ios-bg: #ffffff;
+    --ios-bg-grouped: #f2f2f7;
+    --ios-label: #000000;
+    --ios-secondary: #6e6e73;
+    --ios-tertiary: #c7c7cc;
+    --ios-fill5: #e9e9eb;
+    --ios-separator: rgba(60,60,67,0.29);
+    --ios-accent: #007AFF;
+    --ios-accent-ink: #ffffff;
+    --ios-pending-tint: rgba(0,122,255,0.10);
+    --ios-material: rgba(255,255,255,0.78);
+    --ios-shadow: 0 10px 24px rgba(0,0,0,0.16);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page-bg: #101012;
+      --page-ink: #f2f2f3;
+      --page-sub: #9a9aa1;
+      --card-bg: #17171a;
+      --card-border: #2a2a2e;
+
+      --ios-bg: #000000;
+      --ios-bg-grouped: #000000;
+      --ios-label: #ffffff;
+      --ios-secondary: #98989f;
+      --ios-tertiary: #48484a;
+      --ios-fill5: #2c2c2e;
+      --ios-separator: rgba(84,84,88,0.6);
+      --ios-accent: #0A84FF;
+      --ios-accent-ink: #ffffff;
+      --ios-pending-tint: rgba(10,132,255,0.16);
+      --ios-material: rgba(28,28,30,0.78);
+      --ios-shadow: 0 10px 28px rgba(0,0,0,0.55);
+    }
+  }
+
+  :root[data-theme="light"] {
+    --page-bg: #f2f2f4; --page-ink: #1c1c1e; --page-sub: #6e6e73;
+    --card-bg: #ffffff; --card-border: #e5e5ea;
+    --ios-bg: #ffffff; --ios-bg-grouped: #f2f2f7; --ios-label: #000000;
+    --ios-secondary: #6e6e73; --ios-tertiary: #c7c7cc; --ios-fill5: #e9e9eb;
+    --ios-separator: rgba(60,60,67,0.29); --ios-accent: #007AFF; --ios-accent-ink: #ffffff;
+    --ios-pending-tint: rgba(0,122,255,0.10); --ios-material: rgba(255,255,255,0.78);
+    --ios-shadow: 0 10px 24px rgba(0,0,0,0.16);
+  }
+  :root[data-theme="dark"] {
+    --page-bg: #101012; --page-ink: #f2f2f3; --page-sub: #9a9aa1;
+    --card-bg: #17171a; --card-border: #2a2a2e;
+    --ios-bg: #000000; --ios-bg-grouped: #000000; --ios-label: #ffffff;
+    --ios-secondary: #98989f; --ios-tertiary: #48484a; --ios-fill5: #2c2c2e;
+    --ios-separator: rgba(84,84,88,0.6); --ios-accent: #0A84FF; --ios-accent-ink: #ffffff;
+    --ios-pending-tint: rgba(10,132,255,0.16); --ios-material: rgba(28,28,30,0.78);
+    --ios-shadow: 0 10px 28px rgba(0,0,0,0.55);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page-bg);
+    color: var(--page-ink);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    padding: 40px 24px 80px;
+  }
+
+  .wrap { max-width: 1200px; margin: 0 auto; }
+
+  header.page {
+    max-width: 720px;
+    margin: 0 auto 44px;
+    text-align: center;
+  }
+  header.page .kicker {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ios-accent);
+    margin: 0 0 10px;
+  }
+  header.page h1 {
+    font-size: clamp(28px, 4vw, 38px);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  header.page p {
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--page-sub);
+    margin: 0;
+    text-wrap: pretty;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+    gap: 32px 28px;
+  }
+
+  .option {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 22px 22px 26px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .option .tag {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--ios-accent);
+    background: color-mix(in oklab, var(--ios-accent) 14%, transparent);
+    padding: 5px 10px 5px 8px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+  }
+  .option .tag .letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--ios-accent);
+    color: var(--ios-accent-ink);
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  /* ---- phone frame ---- */
+  .phone {
+    width: 100%;
+    max-width: 280px;
+    aspect-ratio: 280 / 572;
+    background: var(--ios-bg);
+    border-radius: 40px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.02) inset, var(--ios-shadow);
+    border: 1px solid var(--card-border);
+    display: flex;
+    flex-direction: column;
+    font-size: 13px;
+  }
+
+  .statusbar {
+    height: 34px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 0 20px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ios-label);
+  }
+  .statusbar .icons { display: flex; gap: 4px; align-items: center; opacity: 0.9; }
+
+  .navbar {
+    flex: 0 0 auto;
+    padding: 2px 16px 8px;
+  }
+  .navbar .title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .navbar h2 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--ios-label);
+    margin: 0;
+  }
+  .navbar .icon-btn {
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ios-accent);
+  }
+  .navbar .select-btn {
+    font-size: 14px;
+    color: var(--ios-accent);
+    font-weight: 400;
+  }
+  .navbar .icon-row { display: flex; align-items: center; gap: 14px; }
+
+  .searchbar {
+    margin-top: 8px;
+    background: var(--ios-fill5);
+    border-radius: 10px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+    color: var(--ios-secondary);
+    font-size: 13px;
+  }
+
+  .filterbar {
+    display: flex;
+    gap: 6px;
+    padding: 10px 16px 8px;
+    flex: 0 0 auto;
+  }
+  .pill {
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--ios-fill5);
+    color: var(--ios-label);
+  }
+  .pill.active { background: var(--ios-accent); color: var(--ios-accent-ink); }
+
+  .list {
+    flex: 1 1 auto;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 16px;
+    border-bottom: 0.5px solid var(--ios-separator);
+  }
+  .row .icon-badge {
+    width: 28px; height: 28px;
+    border-radius: 7px;
+    background: var(--ios-fill5);
+    color: var(--ios-secondary);
+    display: flex; align-items: center; justify-content: center;
+    flex: 0 0 auto;
+  }
+  .row .content { min-width: 0; flex: 1 1 auto; }
+  .row .content .primary {
+    font-size: 12.5px;
+    color: var(--ios-label);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row .content .secondary {
+    font-size: 10.5px;
+    color: var(--ios-tertiary);
+    margin-top: 2px;
+  }
+  .row .thumb {
+    width: 30px; height: 30px;
+    border-radius: 6px;
+    flex: 0 0 auto;
+    background: linear-gradient(135deg, #ffb199, #ff77a9);
+  }
+  .row .thumb.blue { background: linear-gradient(135deg, #7fd8ff, #3a8dff); }
+
+  /* --- Variant A: pinned paste row inside list header --- */
+  .paste-row-pinned {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--ios-pending-tint);
+    border-bottom: 0.5px solid var(--ios-separator);
+  }
+  .paste-row-pinned .icon-badge {
+    width: 28px; height: 28px;
+    border-radius: 7px;
+    background: var(--ios-accent);
+    color: var(--ios-accent-ink);
+    display: flex; align-items: center; justify-content: center;
+    flex: 0 0 auto;
+  }
+  .paste-row-pinned .txt { flex: 1 1 auto; }
+  .paste-row-pinned .txt .t1 {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ios-accent);
+  }
+  .paste-row-pinned .chev { color: var(--ios-tertiary); font-size: 12px; }
+
+  /* --- Variant B: FAB --- */
+  .fab {
+    position: absolute;
+    right: 14px;
+    bottom: 16px;
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    background: var(--ios-accent);
+    color: var(--ios-accent-ink);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 14px rgba(0,0,0,0.28);
+    z-index: 3;
+  }
+
+  /* --- Variant C: toolbar icon --- */
+  .navbar .icon-btn.paste-toolbar { color: var(--ios-accent); }
+
+  /* --- Variant D: sticky bottom bar --- */
+  .bottom-bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 10px));
+    background: var(--ios-material);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 0.5px solid var(--ios-separator);
+    color: var(--ios-accent);
+    font-size: 13.5px;
+    font-weight: 600;
+  }
+
+  .caption {
+    margin-top: 18px;
+    width: 100%;
+  }
+  .caption h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--page-ink);
+    margin: 0 0 6px;
+  }
+  .caption p {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--page-sub);
+    margin: 0 0 8px;
+  }
+  .caption .fit {
+    display: flex;
+    gap: 14px;
+    font-size: 12px;
+    color: var(--page-sub);
+  }
+  .caption .fit b { color: var(--page-ink); }
+
+  svg { display: block; }
+
+  footer.notes {
+    max-width: 720px;
+    margin: 56px auto 0;
+    border-top: 1px solid var(--card-border);
+    padding-top: 28px;
+  }
+  footer.notes h3 {
+    font-size: 16px;
+    margin: 0 0 10px;
+    color: var(--page-ink);
+  }
+  footer.notes p, footer.notes li {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--page-sub);
+  }
+  footer.notes ul { margin: 0 0 18px; padding-left: 20px; }
+  footer.notes code {
+    background: color-mix(in oklab, var(--page-ink) 8%, transparent);
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-size: 12.5px;
+  }
+</style>
+
+<div class="wrap">
+  <header class="page">
+    <p class="kicker">CLIPPD — PASTE BUTTON PLACEMENT</p>
+    <h1>Where should the manual paste button live?</h1>
+    <p>Four placements for a deliberate, tap-to-check-clipboard action, replacing the automatic foreground read that triggers iOS's paste permission prompt. Each mock uses the app's current list, filters, and system colors.</p>
+  </header>
+
+  <div class="grid">
+
+    <!-- A: pinned row -->
+    <div class="option">
+      <span class="tag"><span class="letter">A</span>Pinned row</span>
+      <div class="phone">
+        <div class="statusbar">
+          <span>9:41</span>
+          <span class="icons">
+            <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M1 8L4 4L6.5 6.5L13 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg width="20" height="10" viewBox="0 0 20 10" fill="none"><rect x="0.5" y="0.5" width="17" height="9" rx="2" stroke="currentColor"/><rect x="2" y="2" width="12" height="6" rx="1" fill="currentColor"/><rect x="18.5" y="3" width="1.5" height="4" rx="0.7" fill="currentColor"/></svg>
+          </span>
+        </div>
+        <div class="navbar">
+          <div class="title-row">
+            <span class="icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M19.4 13a7.4 7.4 0 000-2l2-1.5-2-3.4-2.3.9a7.6 7.6 0 00-1.8-1l-.4-2.5h-4l-.4 2.5a7.6 7.6 0 00-1.8 1l-2.3-.9-2 3.4L6.4 11a7.4 7.4 0 000 2l-2 1.5 2 3.4 2.3-.9a7.6 7.6 0 001.8 1l.4 2.5h4l.4-2.5a7.6 7.6 0 001.8-1l2.3.9 2-3.4-2-1.5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <h2>Clippd</h2>
+            <span class="select-btn">Select</span>
+          </div>
+          <div class="searchbar">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Search clips
+          </div>
+        </div>
+        <div class="filterbar">
+          <span class="pill active">All</span>
+          <span class="pill">Text</span>
+          <span class="pill">Image</span>
+          <span class="pill">Link</span>
+        </div>
+        <div class="list">
+          <div class="paste-row-pinned">
+            <span class="icon-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="3" width="6" height="4" rx="1" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v6M9 14l3 3 3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="txt"><span class="t1">Paste from Clipboard</span></span>
+            <span class="chev">›</span>
+          </div>
+          <div class="row">
+            <span class="icon-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 4h16v16H4z M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <div class="content"><div class="primary">Q3 roadmap notes — ship the paste flow rewrite by Friday</div><div class="secondary">2 hours ago</div></div>
+          </div>
+          <div class="row">
+            <span class="icon-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 15l6-6M10 6l1-1a4 4 0 015.7 5.7l-2 2M14 18l-1 1A4 4 0 017.3 13.3l2-2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <div class="content"><div class="primary">Apple Developer</div><div class="secondary">developer.apple.com</div></div>
+            <div class="thumb blue"></div>
+          </div>
+          <div class="row">
+            <span class="icon-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" stroke-width="1.6"/><path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="1.6"/></svg></span>
+            <div class="content"><div class="primary">Image</div><div class="secondary">Yesterday</div></div>
+            <div class="thumb"></div>
+          </div>
+        </div>
+      </div>
+      <div class="caption">
+        <h3>Pinned row, top of list</h3>
+        <p>Sits where the old auto-detected pending item used to appear, but stays put instead of reacting to the pasteboard on its own. Tap checks the clipboard and inserts it as a new item.</p>
+        <div class="fit"><b>Discoverability</b> high &nbsp;·&nbsp; <b>Disruption</b> low-med &nbsp;·&nbsp; <b>Familiarity</b> matches existing pattern</div>
+      </div>
+    </div>
+
+    <!-- B: FAB -->
+    <div class="option">
+      <span class="tag"><span class="letter">B</span>Floating button</span>
+      <div class="phone">
+        <div class="statusbar">
+          <span>9:41</span>
+          <span class="icons">
+            <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M1 8L4 4L6.5 6.5L13 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg width="20" height="10" viewBox="0 0 20 10" fill="none"><rect x="0.5" y="0.5" width="17" height="9" rx="2" stroke="currentColor"/><rect x="2" y="2" width="12" height="6" rx="1" fill="currentColor"/><rect x="18.5" y="3" width="1.5" height="4" rx="0.7" fill="currentColor"/></svg>
+          </span>
+        </div>
+        <div class="navbar">
+          <div class="title-row">
+            <span class="icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M19.4 13a7.4 7.4 0 000-2l2-1.5-2-3.4-2.3.9a7.6 7.6 0 00-1.8-1l-.4-2.5h-4l-.4 2.5a7.6 7.6 0 00-1.8 1l-2.3-.9-2 3.4L6.4 11a7.4 7.4 0 000 2l-2 1.5 2 3.4 2.3-.9a7.6 7.6 0 001.8 1l.4 2.5h4l.4-2.5a7.6 7.6 0 001.8-1l2.3.9 2-3.4-2-1.5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <h2>Clippd</h2>
+            <span class="select-btn">Select</span>
+          </div>
+          <div class="searchbar">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Search clips
+          </div>
+        </div>
+        <div class="filterbar">
+          <span class="pill active">All</span>
+          <span class="pill">Text</span>
+          <span class="pill">Image</span>
+          <span class="pill">Link</span>
+        </div>
+        <div class="list">
+          <div class="row">
+            <span class="icon-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 4h16v16H4z M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <div class="content"><div class="primary">Q3 roadmap notes — ship the paste flow rewrite by Friday</div><div class="secondary">2 hours ago</div></div>
+          </div>
+          <div class="row">
+            <span class="icon-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 15l6-6M10 6l1-1a4 4 0 015.7 5.7l-2 2M14 18l-1 1A4 4 0 017.3 13.3l2-2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <div class="content"><div class="primary">Apple Developer</div><div class="secondary">developer.apple.com</div></div>
+            <div class="thumb blue"></div>
+          </div>
+          <div class="row">
+            <span class="icon-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" stroke-width="1.6"/><path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="1.6"/></svg></span>
+            <div class="content"><div class="primary">Image</div><div class="secondary">Yesterday</div></div>
+            <div class="thumb"></div>
+          </div>
+          <div class="fab">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="3" width="6" height="4" rx="1" stroke="currentColor" stroke-width="1.9"/><path d="M12 11v6M9 14l3 3 3-3" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="caption">
+        <h3>Floating action button</h3>
+        <p>A familiar iOS idiom (Notes, Reminders) parked bottom-right. Zero disruption to the list itself, but a FAB usually reads as "create new," which can be mistaken for adding an item rather than checking the clipboard.</p>
+        <div class="fit"><b>Discoverability</b> medium &nbsp;·&nbsp; <b>Disruption</b> none &nbsp;·&nbsp; <b>Familiarity</b> risks "compose" confusion</div>
+      </div>
+    </div>
+
+    <!-- C: toolbar icon -->
+    <div class="option">
+      <span class="tag"><span class="letter">C</span>Toolbar icon</span>
+      <div class="phone">
+        <div class="statusbar">
+          <span>9:41</span>
+          <span class="icons">
+            <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M1 8L4 4L6.5 6.5L13 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg width="20" height="10" viewBox="0 0 20 10" fill="none"><rect x="0.5" y="0.5" width="17" height="9" rx="2" stroke="currentColor"/><rect x="2" y="2" width="12" height="6" rx="1" fill="currentColor"/><rect x="18.5" y="3" width="1.5" height="4" rx="0.7" fill="currentColor"/></svg>
+          </span>
+        </div>
+        <div class="navbar">
+          <div class="title-row">
+            <span class="icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M19.4 13a7.4 7.4 0 000-2l2-1.5-2-3.4-2.3.9a7.6 7.6 0 00-1.8-1l-.4-2.5h-4l-.4 2.5a7.6 7.6 0 00-1.8 1l-2.3-.9-2 3.4L6.4 11a7.4 7.4 0 000 2l-2 1.5 2 3.4 2.3-.9a7.6 7.6 0 001.8 1l.4 2.5h4l.4-2.5a7.6 7.6 0 001.8-1l2.3.9 2-3.4-2-1.5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <h2>Clippd</h2>
+            <span class="icon-row">
+              <span class="icon-btn paste-toolbar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="3" width="6" height="4" rx="1" stroke="currentColor" stroke-width="1.8"/></svg></span>
+              <span class="select-btn">Select</span>
+            </span>
+          </div>
+          <div class="searchbar">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Search clips
+          </div>
+        </div>
+        <div class="filterbar">
+          <span class="pill active">All</span>
+          <span class="pill">Text</span>
+          <span class="pill">Image</span>
+          <span class="pill">Link</span>
+        </div>
+        <div class="list">
+          <div class="row">
+            <span class="icon-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 4h16v16H4z M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <div class="content"><div class="primary">Q3 roadmap notes — ship the paste flow rewrite by Friday</div><div class="secondary">2 hours ago</div></div>
+          </div>
+          <div class="row">
+            <span class="icon-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 15l6-6M10 6l1-1a4 4 0 015.7 5.7l-2 2M14 18l-1 1A4 4 0 017.3 13.3l2-2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <div class="content"><div class="primary">Apple Developer</div><div class="secondary">developer.apple.com</div></div>
+            <div class="thumb blue"></div>
+          </div>
+          <div class="row">
+            <span class="icon-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" stroke-width="1.6"/><path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="1.6"/></svg></span>
+            <div class="content"><div class="primary">Image</div><div class="secondary">Yesterday</div></div>
+            <div class="thumb"></div>
+          </div>
+        </div>
+      </div>
+      <div class="caption">
+        <h3>Icon in the nav bar</h3>
+        <p>Lives next to Select, icon-only. The most minimal option: the list layout never changes. Weakest first-time discoverability, so it likely needs a one-time tooltip or coach mark on first launch.</p>
+        <div class="fit"><b>Discoverability</b> low (needs coach mark) &nbsp;·&nbsp; <b>Disruption</b> none &nbsp;·&nbsp; <b>Familiarity</b> new pattern</div>
+      </div>
+    </div>
+
+    <!-- D: bottom bar -->
+    <div class="option">
+      <span class="tag"><span class="letter">D</span>Sticky bottom bar</span>
+      <div class="phone">
+        <div class="statusbar">
+          <span>9:41</span>
+          <span class="icons">
+            <svg width="14" height="10" viewBox="0 0 14 10" fill="none"><path d="M1 8L4 4L6.5 6.5L13 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg width="20" height="10" viewBox="0 0 20 10" fill="none"><rect x="0.5" y="0.5" width="17" height="9" rx="2" stroke="currentColor"/><rect x="2" y="2" width="12" height="6" rx="1" fill="currentColor"/><rect x="18.5" y="3" width="1.5" height="4" rx="0.7" fill="currentColor"/></svg>
+          </span>
+        </div>
+        <div class="navbar">
+          <div class="title-row">
+            <span class="icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M19.4 13a7.4 7.4 0 000-2l2-1.5-2-3.4-2.3.9a7.6 7.6 0 00-1.8-1l-.4-2.5h-4l-.4 2.5a7.6 7.6 0 00-1.8 1l-2.3-.9-2 3.4L6.4 11a7.4 7.4 0 000 2l-2 1.5 2 3.4 2.3-.9a7.6 7.6 0 001.8 1l.4 2.5h4l.4-2.5a7.6 7.6 0 001.8-1l2.3.9 2-3.4-2-1.5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.4"/></svg></span>
+            <h2>Clippd</h2>
+            <span class="select-btn">Select</span>
+          </div>
+          <div class="searchbar">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Search clips
+          </div>
+        </div>
+        <div class="filterbar">
+          <span class="pill active">All</span>
+          <span class="pill">Text</span>
+          <span class="pill">Image</span>
+          <span class="pill">Link</span>
+        </div>
+        <div class="list" style="flex:1 1 auto;">
+          <div class="row">
+            <span class="icon-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 4h16v16H4z M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <div class="content"><div class="primary">Q3 roadmap notes — ship the paste flow rewrite by Friday</div><div class="secondary">2 hours ago</div></div>
+          </div>
+          <div class="row">
+            <span class="icon-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 15l6-6M10 6l1-1a4 4 0 015.7 5.7l-2 2M14 18l-1 1A4 4 0 017.3 13.3l2-2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+            <div class="content"><div class="primary">Apple Developer</div><div class="secondary">developer.apple.com</div></div>
+            <div class="thumb blue"></div>
+          </div>
+          <div class="row">
+            <span class="icon-badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" stroke-width="1.6"/><path d="M21 15l-5-5L5 21" stroke="currentColor" stroke-width="1.6"/></svg></span>
+            <div class="content"><div class="primary">Image</div><div class="secondary">Yesterday</div></div>
+            <div class="thumb"></div>
+          </div>
+        </div>
+        <div class="bottom-bar">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="3" width="6" height="4" rx="1" stroke="currentColor" stroke-width="1.9"/></svg>
+          Paste from Clipboard
+        </div>
+      </div>
+      <div class="caption">
+        <h3>Pinned bottom bar</h3>
+        <p>A slim, blurred bar above the home indicator, similar to Photos/Files action bars. Reachable one-handed, always visible without competing with row content or the nav bar.</p>
+        <div class="fit"><b>Discoverability</b> high &nbsp;·&nbsp; <b>Disruption</b> low (shrinks list by ~44pt) &nbsp;·&nbsp; <b>Familiarity</b> common toolbar pattern</div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="notes">
+    <h3>Copy options for the button label</h3>
+    <ul>
+      <li><code>Paste from Clipboard</code> — clearest verb + object, matches system vocabulary (recommended).</li>
+      <li><code>Check Clipboard</code> — accurate to what happens technically, but reads more like a status check than an action.</li>
+      <li><code>Add from Clipboard</code> — emphasizes the outcome (a new saved item) over the mechanism.</li>
+      <li><code>Paste to Clippd</code> — shortest, works well icon-only with a tooltip as backup.</li>
+    </ul>
+
+    <h3>Recommendation</h3>
+    <p><b>A (pinned row)</b> or <b>D (bottom bar)</b> are the strongest fits: both stay visible without a coach mark, and neither implies "create new" the way a FAB does. A keeps the mental model closest to today's pending-item row, so it's the smallest behavior change for existing users. D is a close second if the top of the list should stay purely search + filters.</p>
+
+    <h3>Why this replaces the current flow</h3>
+    <p>Today, <code>ClipboardReader.readAndInsertPending</code> runs on every foreground and <code>.onAppear</code>, which reads <code>UIPasteboard.general</code> without a direct user gesture — that's what triggers iOS's "Allow Paste" prompt. Moving the read behind a tap on one of these buttons means the tap itself is the user's consent. On iOS 16+, SwiftUI's native <code>PasteButton</code> is built exactly for this: it lets the system fulfill the paste without ever showing the permission banner, since the button owns the gesture. Worth using for whichever placement you pick, so the button both looks native and behaves natively.</p>
+
+    <h3>Outcome</h3>
+    <p>Option D (sticky bottom bar) was selected and implemented in <code>clippd/Views/HomeView.swift</code>, using SwiftUI's native <code>PasteButton</code>. It was later repositioned as a circular FAB next to a shrunk custom search field, in the same row — see the app for the current, real implementation; this file is a historical snapshot of the exploration that led there.</p>
+  </footer>
+</div>
