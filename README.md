@@ -1,154 +1,120 @@
 # Clippd
 
-Clippd is a privacy-first iPhone clipboard manager I made as a vibe-coding side project.
+The clipboard history iOS doesn't have.
 
-I am primarily a designer, not a deeply technical iOS engineer, and this project started from a very simple frustration: most clipboard manager apps I found were paid, and I wanted something clean, private, and useful for myself. At the same time, I wanted an excuse to get more hands-on with coding, so Clippd became a small product idea, a learning project, and a way to build something I would actually use.
+Clippd is a privacy-first clipboard manager for iPhone. I'm a product designer, not an iOS engineer, and I designed and built it with AI as a learning project and a real app I wanted to use myself.
 
-The goal was to keep it simple:
+<p align="center">
+  <img src="docs/screenshots/home-light.png" width="260" alt="Clippd home screen in light mode, with pinned clips and today's clips grouped by day">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/home-dark.png" width="260" alt="Clippd home screen in dark mode">
+</p>
 
-- save text, links, and images
-- bring old clipboard items back with one tap
-- keep everything on-device
-- make the app understandable even for non-technical people
+## Why it exists
 
-## What Clippd Does
+I copied an address, then a link, and the address was gone. My iPhone only remembers the last thing you copied. My Mac has clipboard managers for this, so I wondered why there was nothing like it on iOS.
 
-Clippd gives your clipboard a memory.
+The answer is privacy. iOS doesn't let apps read the clipboard in the background, and when an app reads it in code while open, iOS shows an "Allow Paste" prompt. My first version read the clipboard every time it opened, so it asked on every single open.
 
-When you copy something and open the app, Clippd can detect it and show it as a new pending item. You can save it into your history, browse older saved items, filter them by type, search through them, and copy anything back to the clipboard whenever you need it again.
+So Clippd stopped asking. It uses Apple's system **Paste button**: iOS hands over what you copied only when you tap it, and no prompt appears, because the tap itself is the permission.
 
-It also includes a Share Extension, so you can save content from other apps like Safari, Notes, or Photos directly into Clippd.
+## How you save a clip
 
-## Why I Made It
+There are two ways in, and both are started by you.
 
-This project came from a very real personal use case:
+1. **Paste:** copy anything, open Clippd, tap **Paste**.
+2. **Share:** in Safari, Photos or any other app, tap **Share › Clippd**. It saves without opening the app.
 
-- I wanted a clipboard manager for iPhone
-- many options on the App Store were paid
-- I wanted something private and lightweight
-- I also wanted to learn by building, not just by reading tutorials
+<p align="center">
+  <img src="docs/screenshots/welcome.png" width="260" alt="Welcome sheet explaining Paste, Share and on-device storage">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/empty.png" width="260" alt="Empty state with a tip pointing at the Paste button">
+</p>
 
-So this repo is intentionally a real product idea, but it is also a design-led learning project. It is planned with care, but built in a very practical, "make it work, make it understandable, keep shipping" way.
+New users see a one-time welcome sheet, then a single tip on the Paste button. There's no multi-step tour.
 
-## Who This Project Is For
+## Features
 
-This repo may be especially useful if you are:
+- Saves **text, links, colours and images**
+- **Clips show themselves:** images become thumbnails, hex colours become swatches, links show a preview
+- **Pinned** clips stay at the top and are never removed by the history limit
+- Clips are **grouped by day** ("Today · 4") with a clip count
+- **Smart filters** (YouTube, Links, Text, Colours, Images) that only appear when you have that kind of clip
+- **Search** in the bottom bar
+- **List or Board** layout, from the ⋯ menu
+- Tap to copy, swipe to pin or delete, long-press for more
+- **Select mode** to copy, pin, share or delete several clips at once
+- **Settings:** history limit (20 to 200 clips), link previews on or off, storage used, clear all
+- Light and dark mode, Dynamic Type and VoiceOver, all from native components
 
-- a designer learning to code through real projects
-- someone curious about building simple iOS apps with SwiftUI
-- interested in privacy-first product ideas
-- looking for a small example of an app + share extension setup
-
-## Current Features
-
-The current app includes:
-
-- onboarding for first-time users
-- clipboard detection when the app becomes active
-- support for text, images, and links
-- pending clipboard items that can be saved with one tap
-- saved clipboard history using SwiftData
-- tap to copy any saved item back to the clipboard
-- swipe to delete items
-- multi-select mode for bulk deletion
-- filtering by content type
-- search for saved text and links
-- settings for history limit, link previews, and storage usage
-- optional link preview fetching
-- iOS Share Extension for saving from other apps
-- shared App Group storage between the main app and the extension
+<p align="center">
+  <img src="docs/screenshots/board.png" width="260" alt="Board layout showing clips as a two-column grid of cards">
+</p>
 
 ## Privacy
 
-Privacy is one of the main ideas behind Clippd.
+- Everything is stored **on your iPhone**. No account, no server, no analytics, no tracking.
+- Clippd **never reads your clipboard on its own**. It only sees what you hand it with Paste or Share.
+- **Link previews** are the only network activity. To show a link's title and image, the app asks that website directly. Nothing goes to me or any third party. Previews can be turned off in Settings; links then show a simple icon instead.
 
-- everything is stored locally on-device
-- no accounts
-- no analytics
-- no tracking
-- no server dependency for the main app flow
+Full policy: [PRIVACY.md](PRIVACY.md)
 
-The only optional network behavior is link preview fetching, and that only happens if the user enables it in Settings.
+## Built with
 
-## Built With
+| Part | What it does |
+|---|---|
+| `SwiftUI` | The whole interface, using Apple's native components only |
+| `PasteButton` | The system Paste button that reads the clipboard without a prompt |
+| `SwiftData` | On-device storage for clips |
+| Share extension (`ClippdShare`) | Saves from other apps' Share menu |
+| App Group (`group.com.ashish.clippd`) | A shared folder so the app and the extension use the same database |
+| `LinkPresentation` | Optional link previews |
+| `TipKit` | The one-time tip on the Paste button |
 
-- `SwiftUI` for the app interface
-- `SwiftData` for local persistence
-- `LinkPresentation` for optional link metadata previews
-- `UIPasteboard` for clipboard access
-- iOS Share Extension for saving content from other apps
-- App Groups for shared storage between targets
+No third-party dependencies. Requires **iOS 18** or later.
 
-## Project Structure
+## Project structure
 
-The project has two main targets:
+```
+clippd/            the iPhone app
+  Views/           Home, row and card, Settings, Welcome
+  Models/          ClipboardItem (SwiftData), display helpers, settings, sample data
+  Services/        ClipboardReader (handles Paste), LinkPreviewFetcher
+ClippdShare/       the Share extension
+docs/screenshots/  screenshots used in this README
+```
 
-- `clippd` - the main iPhone app
-- `ClippdShare` - the Share Extension
+Design and planning docs live alongside the code:
 
-Main app areas:
+- `PRODUCT.md`: who it's for and the design principles
+- `DESIGN.md`: the visual system
+- `CASE-STUDY-LOG.md`: every design decision and why it was made
+- `clippd/Instructions/REQUIREMENTS.md`: the original plan
 
-- `clippd/Views` for the UI screens
-- `clippd/Models` for app data and settings
-- `clippd/Services` for clipboard reading and link previews
+The Figma file has every exploration, the final screens in light and dark, and a short case study.
 
-Extension area:
+## Running it
 
-- `ClippdShare` for the share flow and shared persistence setup
+Open `clippd.xcodeproj` in Xcode and run the **Clippd** scheme on an iPhone simulator or device. You'll need your own team and App Group ID to run it on a device.
 
-There is also a more detailed product planning document in `clippd/Instructions/REQUIREMENTS.md`, which explains the original goals, user stories, and feature plan in plain language.
+For screenshots and testing, debug builds accept launch arguments:
 
-## Tech Notes
+```
+-seedSampleData             fills the app with example clips
+-hasSeenOnboarding YES      skips the welcome sheet
+-layout board               opens in Board layout
+```
 
-Here are the important implementation details at a glance:
+## What I learned
 
-- deployment target: iOS 17+
-- app data is stored with `SwiftData`
-- storage is shared through the App Group `group.com.ashish.clippd`
-- the share extension writes into the same shared store as the main app
-- the app is designed around native Apple frameworks instead of third-party dependencies
+- **Read the platform's rules first.** It would have saved me a whole version.
+- **AI made exploring cheap. Choosing was still my job.** Each round was built from Apple's iOS 26 kit, and I pushed back, picked a direction and threw the rest away.
+- **Building it caught what no mockup could.** The Share extension runs as a separate program and couldn't see the app's settings, so it read the history limit as 0 and could have deleted every clip. Fixed before release.
 
-## Product Philosophy
+## Status
 
-I wanted this app to feel:
-
-- useful before clever
-- native before overdesigned
-- private before "growth"
-- simple enough that a normal person could understand it quickly
-
-This is not trying to be a giant power-user clipboard system. It is trying to be a straightforward, personal, well-planned utility app.
-
-## Project Status
-
-Clippd is still a side project and an active learning project.
-
-That means:
-
-- it is real and functional
-- it has been planned intentionally
-- it is not pretending to be a huge production-scale app
-- there is still room to refine UX, polish states, and improve the overall product
-
-In other words: this is a designer-built app made with curiosity, practicality, and a lot of vibe coding, but with enough structure underneath it to grow properly.
-
-## Possible Next Improvements
-
-Some natural next steps for the project:
-
-- improve the visual polish and branding
-- add better empty states and richer share previews
-- improve image handling and edge cases
-- refine bulk actions and item management
-- expand testing and release preparation
-- prepare App Store assets and screenshots
-
-## Notes For GitHub Visitors
-
-If you are reading this as a developer, this project is a small SwiftUI utility app with a clean use case and shared-data extension setup.
-
-If you are reading this as a designer, this project is also proof that you do not need to be "super technical" to start building software ideas. You can start with a real problem, define the important behaviors clearly, and build your way into better technical understanding.
+Version 1.0, preparing for the App Store.
 
 ---
 
-Built by a designer who wanted a better clipboard tool and decided to learn by making one.
+Made by [Ashish Jangra](https://x.com/feat_ashish), a designer who wanted a better clipboard and learned by building one.

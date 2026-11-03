@@ -37,6 +37,7 @@ iOS has no clipboard history. I wanted to know why, found out, and built the bes
 | 2026-11-01 | Explorations trimmed to 7 milestones (dropped rounds 1, 3, 7) | Show the decisions that changed direction, not every step | Explorations page |
 | 2026-11-02 | Final design page: 14 screens × light/dark; then built it in SwiftUI with native parts only (inset grouped List, inline large title, .searchable in the bottom bar, PasteButton with label, TipKit tip, Menu, swipe actions, edit-mode selection) | Design and code should match one-to-one, so the case study can show Figma next to the simulator | Figma › Final design; simulator screenshots |
 | 2026-11-02 | Found a real bug while coding: the Share extension read the history limit as 0 and could wipe all clips | Defaults registered in the app don't exist in the extension's process. Fixed with a fallback, and pinned clips never count toward the limit | ClippdShare/ShareViewController.swift |
+| 2026-11-02 | Case study deck: 9 slides (16:9) on the Figma Presentation page, built from real editable screens | A 2-minute story a hiring manager will actually read: the question, the wall, the reframe, the result | Figma › Presentation |
 
 ## What I learned (fill in honestly as it happens)
 - Why iOS has no clipboard history: privacy. Apps can't read the clipboard in the background, and reading it in the foreground triggers a prompt.
